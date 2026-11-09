@@ -1,6 +1,6 @@
 cask "machyperkey" do
-  version "1.0.1"
-  sha256 "a5011b732b02123fdbf0a3696b3d9b5cddbec945b2e4e65e979d84ea2dc375f2"
+  version "1.0.2"
+  sha256 "e1b667300e727320e8f96ee7c0342058353de200584b25603bc5bf08a6532f18"
 
   url "https://github.com/henrikhestnes/MacHyperKey/releases/download/v#{version}/MacHyperKey.zip"
   name "MacHyperKey"
