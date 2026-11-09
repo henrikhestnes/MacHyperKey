@@ -5,8 +5,10 @@ import MacHyperKeyCore
 /// Turns the trigger key (the remapped physical key) into ⌃⌥⌘ (and optionally ⇧).
 ///
 /// While hyper is held, the tap adds the hyper flags to every key event and to the mouse events
-/// chosen in settings. It also posts modifier key events when hyper goes down and up, so apps that
-/// watch modifier changes see hyper pressed and released. Needs Accessibility access.
+/// chosen in settings. The first time hyper is used with something else, it also posts the modifier
+/// key-downs, and posts the key-ups when hyper goes up, so apps that watch modifier changes see hyper
+/// pressed and released. Holding hyper alone posts nothing, so apps that react to a bare modifier
+/// (Slack's numbered tab hints, for example) stay quiet. Needs Accessibility access.
 final class HyperKeyTap {
     var configuration = HyperConfiguration() {
         didSet { if !configuration.hyperActive { release(quickPress: false) } }
@@ -20,6 +22,8 @@ final class HyperKeyTap {
     private static let marker: Int64 = 0x4859_5045_524B // "HYPERK"
     private var watchdog: Timer?
     private var sawTriggerDown = false
+    /// Whether the modifier key-downs for the current press have been posted.
+    private var modifiersPosted = false
 
     var isRunning: Bool { tap != nil }
 
@@ -94,29 +98,40 @@ final class HyperKeyTap {
     private func addHyper(to event: CGEvent, for action: MouseAction? = nil) {
         guard session.isActive else { return }
         if let action, !configuration.mouseActions.contains(action) { return }
+        postModifiersIfNeeded()
         event.flags = CGEventFlags(rawValue: event.flags.rawValue | configuration.hyperFlags)
     }
 
     // MARK: Hyper down and up
 
     private func press() {
+        modifiersPosted = false
+        startWatchdog()
+    }
+
+    /// Posts the modifier key-downs the first time hyper is used during a press.
+    private func postModifiersIfNeeded() {
+        guard !modifiersPosted else { return }
+        modifiersPosted = true
         var flags = physicalFlags
         for modifier in configuration.modifiers {
             flags |= modifier.flags
             postModifier(modifier.keyCode, flags: flags)
         }
-        startWatchdog()
     }
 
     private func release(quickPress: Bool) {
         guard session.isActive else { return }
         let fire = session.release(at: now) && quickPress && configuration.quickPressEnabled
         stopWatchdog()
-        let physical = physicalFlags
-        var flags = physical | configuration.hyperFlags
-        for modifier in configuration.modifiers.reversed() {
-            flags &= ~modifier.flags
-            postModifier(modifier.keyCode, flags: flags | physical)
+        if modifiersPosted {
+            modifiersPosted = false
+            let physical = physicalFlags
+            var flags = physical | configuration.hyperFlags
+            for modifier in configuration.modifiers.reversed() {
+                flags &= ~modifier.flags
+                postModifier(modifier.keyCode, flags: flags | physical)
+            }
         }
         if fire { performQuickPress() }
     }
