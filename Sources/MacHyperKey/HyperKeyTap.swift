@@ -61,6 +61,7 @@ final class HyperKeyTap {
             return Unmanaged.passUnretained(event)
         }
         guard event.getIntegerValueField(.eventSourceUserData) != Self.marker else { return Unmanaged.passUnretained(event) }
+        physicalFlags = event.flags.rawValue & Self.modifierMask
 
         switch type {
         case .keyDown, .keyUp:
@@ -161,12 +162,14 @@ final class HyperKeyTap {
         event.post(tap: .cgSessionEventTap)
     }
 
-    /// The modifier keys physically held, which the hyper flags are combined with.
-    private var physicalFlags: UInt64 {
-        // Caps lock state, ⇧⌃⌥⌘, and their left/right device bits.
-        let modifiers: UInt64 = 0x1F_0000 | 0x207F
-        return CGEventSource.flagsState(.hidSystemState).rawValue & modifiers
-    }
+    /// Caps lock state, ⇧⌃⌥⌘, and their left/right device bits.
+    private static let modifierMask: UInt64 = 0x1F_0000 | 0x207F
+
+    /// The modifier keys physically held, which the hyper flags are combined with. Taken from each
+    /// incoming event before hyper is added to it. `CGEventSource.flagsState(.hidSystemState)` can't
+    /// be used: it follows the flags of the last event, which already include hyper, so the
+    /// modifier key-ups would keep ⌃⌥⌘ set and apps would see them stuck down.
+    private var physicalFlags = CGEventSource.flagsState(.hidSystemState).rawValue & HyperKeyTap.modifierMask
 
     // MARK: Watchdog
 
