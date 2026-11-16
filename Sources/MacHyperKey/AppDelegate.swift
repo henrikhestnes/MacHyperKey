@@ -25,8 +25,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for name in [NSWorkspace.willSleepNotification, NSWorkspace.sessionDidResignActiveNotification] {
             center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.tap.reset() }
         }
+        // The hyper key's release can be lost while the Mac sleeps or wakes, so start clean after waking.
         center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.tap.reset()
             self?.applySettings()
+        }
+        // The lock screen's password field hides key events from the tap, so a release there is missed too.
+        for name in ["com.apple.screenIsLocked", "com.apple.screenIsUnlocked"] {
+            DistributedNotificationCenter.default().addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] _ in
+                self?.tap.reset()
+            }
         }
 
         // Shows the system prompt once; the settings window explains how to grant access if it is still missing.

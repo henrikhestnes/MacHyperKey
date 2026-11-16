@@ -58,6 +58,8 @@ final class HyperKeyTap {
     private func handle(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            // Events were dropped while the tap was off, and the hyper key's release may be one of them.
+            release(quickPress: false)
             return Unmanaged.passUnretained(event)
         }
         guard event.getIntegerValueField(.eventSourceUserData) != Self.marker else { return Unmanaged.passUnretained(event) }
@@ -176,11 +178,12 @@ final class HyperKeyTap {
     /// Secure input (password fields) hides key events from event taps, so the release of the hyper
     /// key can be missed. While hyper is held, poll the key state, and release hyper once the key is
     /// up. The poll only acts after it has seen the key down once, so it can never cut a press short
-    /// if the key state is not reported for the remapped key.
+    /// if the key state is not reported for the remapped key. The state is read at the press itself
+    /// and then polled often, so a short press is seen down too.
     private func startWatchdog() {
-        sawTriggerDown = false
+        sawTriggerDown = CGEventSource.keyState(.hidSystemState, key: Keys.trigger.keyCode)
         watchdog?.invalidate()
-        watchdog = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        watchdog = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             guard let self else { return }
             if CGEventSource.keyState(.hidSystemState, key: Keys.trigger.keyCode) {
                 sawTriggerDown = true
